@@ -1,0 +1,31 @@
+{
+  "name": "trabalho02ppi",
+  "version": "1.0.0",
+  "description": "implementação e tratamento do metodo HTTP  POST ",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "start": "node index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andressaquiosi/Trabalho02PPI.git"
+  },
+  "keywords": [
+    "http",
+    "node",
+    "javascript",
+    "express",
+    "post"
+  ],
+  "author": "andressa quiosi",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/andressaquiosi/Trabalho02PPI/issues"
+  },
+  "homepage": "https://github.com/andressaquiosi/Trabalho02PPI#readme",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
