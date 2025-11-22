@@ -6,6 +6,7 @@ const host = "0.0.0.0";
 const porta = 3000;
 
 var listaProdutos = [];
+var listaUsuariosLogados = [];
 
 const server = express();
 
@@ -45,8 +46,8 @@ function gerarMenu() {
                         <li class="nav-item">
                             <a class="nav-link" href="/cadastrar-produto">Cadastrar Produto</a>
                         </li>
-                         <li class="nav-item">
-                            <a class="nav-link" href="#">Lista de Usuários</a>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lista-usuarios">Lista de Usuários</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="/login">Login</a>
@@ -141,10 +142,25 @@ server.post('/login', (requisicao, resposta) => {
     const { usuario, senha } = requisicao.body;
 
     if (usuario === 'admin' && senha === 'admin') {
+        const dataHoraLogin = new Date().toLocaleString();
+        
+        const usuarioExistente = listaUsuariosLogados.find(u => u.usuario === usuario);
+        
+        if (usuarioExistente) {
+            usuarioExistente.ultimoAcesso = dataHoraLogin;
+        } else {
+            listaUsuariosLogados.push({
+                usuario: usuario,
+                nomeCompleto: "Administrador",
+                ultimoAcesso: dataHoraLogin
+            });
+        }
+
         requisicao.session.dadoslogin = {
             usuariologado: true,
             nomeusuario: "Administrador"
         };
+        
         resposta.redirect("/");
     } else {
         resposta.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -171,6 +187,75 @@ server.post('/login', (requisicao, resposta) => {
 server.get('/logout', (requisicao, resposta) => {
     requisicao.session.destroy();
     resposta.redirect("/login");
+});
+
+server.get("/lista-usuarios", verificarusuariologado, (requisicao, resposta) => {
+    let ultimoacesso = requisicao.cookies?.ultimoacesso;
+    const data = new Date();
+    resposta.cookie("ultimoacesso", data.toLocaleString());
+
+    resposta.setHeader("Content-Type", "text/html; charset=utf-8");
+    resposta.write(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Lista de Usuários</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        ${gerarMenu()}
+        
+        <div class="container-fluid">
+            <div class="d-flex justify-content-end p-2">
+                <p class="text-muted"><strong>Último acesso:</strong> ${ultimoacesso || "Primeiro acesso"}</p>
+            </div>
+        </div>
+
+        <div class="container mt-3">
+            <h2 class="mb-4">Lista de Usuários Logados</h2>
+    `);
+
+    if (listaUsuariosLogados.length > 0) {
+        resposta.write(`
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Nome Completo</th>
+                            <th>Último Acesso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `);
+        
+        for (const user of listaUsuariosLogados) {
+            resposta.write(`
+                <tr>
+                    <td>${user.usuario}</td>
+                    <td>${user.nomeCompleto}</td>
+                    <td>${user.ultimoAcesso}</td>
+                </tr>
+            `);
+        }
+        
+        resposta.write(`
+                    </tbody>
+                </table>
+            </div>
+        `);
+    } else {
+        resposta.write('<div class="alert alert-info">Nenhum usuário logou no sistema ainda.</div>');
+    }
+
+    resposta.write(`
+        </div>
+    </body>
+    </html>
+    `);
+    resposta.end();
 });
 
 server.get("/cadastrar-produto", verificarusuariologado, (requisicao, resposta) => {
