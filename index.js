@@ -46,7 +46,7 @@ function gerarMenu() {
                             <a class="nav-link" href="/cadastrar-produto">Cadastrar Produto</a>
                         </li>
                          <li class="nav-item">
-                            <a class="nav-link" href="#">Listar Usuários</a>
+                            <a class="nav-link" href="#">Lista de Usuários</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="/login">Login</a>
@@ -85,7 +85,7 @@ server.get("/", (requisicao, resposta) => {
             </div>
         </div>
         <div class="container mt-5">
-            <h1>Bem-vindo ao Sistema de Estoque</h1>
+            <h1>Sistema de Estoque</h1>
             <p>Utilize o menu para acessar o cadastro de produtos.</p>
             ${!requisicao.session?.dadoslogin?.usuariologado ? 
                 '<div class="alert alert-warning">Você não está logado. Por favor, faça o <a href="/login">Login</a>.</div>' : 
@@ -113,7 +113,7 @@ server.get('/login', (requisicao, resposta) => {
         <div class="container mt-5">
             <div class="row justify-content-center">
                 <div class="col-md-6">
-                    <h2 class="mb-4">Autenticação</h2>
+                    <h2 class="mb-4">Autenticação do Sistema</h2>
                     <form action="/login" method="POST">
                         <div class="mb-3">
                             <label for="usuario" class="form-label">Usuário:</label>
@@ -226,7 +226,7 @@ server.get("/cadastrar-produto", verificarusuariologado, (requisicao, resposta) 
                         <input type="date" class="form-control" id="dataValidade" name="dataValidade" required>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label for="qtdEstoque" class="form-label">Qtd em Estoque:</label>
+                        <label for="qtdEstoque" class="form-label">Quantidade em Estoque:</label>
                         <input type="number" class="form-control" id="qtdEstoque" name="qtdEstoque" required>
                     </div>
                 </div>
