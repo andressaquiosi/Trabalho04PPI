@@ -1,34 +1,39 @@
 import express from "express";
 import cookieParser from "cookie-parser";
-import Session from "express-session";
 import session from "express-session";
 
 const host = "0.0.0.0";
 const porta = 3000;
 
-var listaFornecedores = [];
-var listaClientes = [];
-var usuariologado = false;
+var listaProdutos = [];
 
 const server = express();
 
 server.use(session({
-    secret:"Minh4Ch4v3S3cr3t4",
-    resave: true,
-    saveUninitialized: true,
+    secret: "Minh4Ch4v3S3cr3t4",
+    resave: true, 
+    saveUninitialized: true, 
     cookie: {
-       maxAge : 1000 * 60 * 15
+        maxAge: 1000 * 60 * 15
     }
 }));
+
 server.use(express.urlencoded({ extended: true }));
+server.use(cookieParser()); 
 
-server.use(cookieParser());
+function verificarusuariologado(requisicao, resposta, proximo) {
+    if (requisicao.session?.dadoslogin?.usuariologado) {
+        proximo();
+    } else {
+        resposta.redirect("/login?erro=naologado");
+    }
+}
 
-function gerarMenu() {
+function gerarMenu(usuarioLogado = "Visitante") {
     return `
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">Sistema de Cadastro</a>
+                <a class="navbar-brand" href="/">Sistema de Produtos</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
@@ -37,20 +42,19 @@ function gerarMenu() {
                         <li class="nav-item">
                             <a class="nav-link active" aria-current="page" href="/">Home</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/cadastrar-produto">Cadastro de Produtos</a>
+                        </li>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownCadastros" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                Cadastros
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownUser" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                ${usuarioLogado}
                             </a>
-                            <ul class="dropdown-menu" aria-labelledby="navbarDropdownCadastros">
-                                <li><a class="dropdown-item" href="/cadastrar-fornecedor">Cadastrar Fornecedor</a></li>
-                                <li><a class="dropdown-item" href="/cadastrar-cliente">Cadastrar Cliente</a></li>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownUser">
+                                ${usuarioLogado !== "Visitante"
+                                    ? `<li><a class="dropdown-item" href="/logout">Logout</a></li>`
+                                    : `<li><a class="dropdown-item" href="/login">Login</a></li>`
+                                }
                             </ul>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/login">Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/logout">Logout</a>
                         </li>
                     </ul>
                 </div>
@@ -59,843 +63,413 @@ function gerarMenu() {
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     `;
 }
-server.get("/", verificarusuariologado, (requisicao, resposta) => {
+server.get("/", (requisicao, resposta) => {
+    let nomeUsuario = requisicao.session?.dadoslogin?.nomeusuario || "Visitante";
+    let estaLogado = requisicao.session?.dadoslogin?.usuariologado;
 
-    //VERIFICAR EXISTENCIA DE COOKIES
-    let ultimoacesso = requisicao.cookies?.ultimoacesso;
-    if(usuariologado){
-        resposta.redirect("/cadastrodeusuario");
-    }
+    resposta.setHeader("Content-Type", "text/html; charset=utf-8");
 
-    let conteudo = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Sistema de Gerenciamento</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    </head>
-    <body>
-        ${gerarMenu()}
-        <div class="container mt-5">
-            <h1>Página Inicial</h1>
-            <p>Bem-vindo ao sistema de gerenciamento.</p>
-            <p>Funcionalidades disponíveis no sistema:</p>
-            
-            <div class="row mt-4">
-                <div class="col-md-6">
-                    <div class="card mb-3">
-                        <div class="card-header bg-primary text-white">
-                            <h5>Cadastros</h5>
-                        </div>
-                        <div class="card-body">
-                            <ul>
-                                <li><a href="/cadastrar-fornecedor">Cadastrar Fornecedor</a> - Cadastre empresas fornecedoras</li>
-                                <li><a href="/cadastrar-cliente">Cadastrar Cliente</a> - Cadastre clientes no sistema</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6">
-                    <div class="card mb-3">
-                        <div class="card-header bg-success text-white">
-                            <h5>Acesso ao Sistema</h5>
-                        </div>
-                        <div class="card-body">
-                            <ul>
-                                <li><a href="/login">Login</a> - Fazer login no sistema</li>
-                                <li><a href="/logout">Logout</a> - Sair do sistema</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
-    resposta.send(conteudo);
-});
-server.get("/cadastrar-fornecedor", (requisicao, resposta) => {
-    let conteudo = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cadastro de Fornecedor</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    </head>
-    <body>
-        ${gerarMenu()}
-        <div class="container mt-5">
-            <h2 class="mb-4">Cadastro de Fornecedor</h2>
-            
-            <form action="/cadastrar-fornecedor" method="POST">
-                
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="cnpj" class="form-label">CNPJ:</label>
-                        <input type="text" class="form-control" id="cnpj" name="cnpj" value="" placeholder="00.000.000/0000-00">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="razaoSocial" class="form-label">Razão Social:</label>
-                        <input type="text" class="form-control" id="razaoSocial" name="razaoSocial" value="" placeholder="Moraes & irmãos Ltda">
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="nomeFantasia" class="form-label">Nome Fantasia:</label>
-                        <input type="text" class="form-control" id="nomeFantasia" name="nomeFantasia" value="" placeholder="Loja do 1,99">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="telefone" class="form-label">Telefone:</label>
-                        <input type="text" class="form-control" id="telefone" name="telefone" value="" placeholder="(00) 00000-0000">
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="endereco" class="form-label">Endereço:</label>
-                    <input type="text" class="form-control" id="endereco" name="endereco" value="" placeholder="Rua, Número, Bairro">
-                </div>
-                <div class="row">
-                    <div class="col-md-5 mb-3">
-                        <label for="cidade" class="form-label">Cidade:</label>
-                        <input type="text" class="form-control" id="cidade" name="cidade" value="">
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label for="uf" class="form-label">UF:</label>
-                        <input type="text" class="form-control" id="uf" name="uf" value="" placeholder="SP" maxlength="2">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="cep" class="form-label">CEP:</label>
-                        <input type="text" class="form-control" id="cep" name="cep" value="" placeholder="00000-000">
-                    </div>
-                </div>
+    let corpo;
 
-                <div class="mb-3">
-                    <label for="email" class="form-label">Email:</label>
-                    <input type="email" class="form-control" id="email" name="email" value="" placeholder="contato@empresa.com">
-                </div>
-                
-                <button type="submit" class="btn btn-primary">Cadastrar</button>
-            </form>
-            <hr class="mt-5">
-
-            <h3 class="mb-4">Fornecedores Cadastrados</h3>
-    `;
-    if (listaFornecedores.length > 0) {
-        conteudo += `
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th>CNPJ</th>
-                            <th>Razão Social</th>
-                            <th>Nome Fantasia</th>
-                            <th>Telefone</th>
-                            <th>Email</th>
-                            <th>Endereço</th>
-                            <th>Cidade/UF</th>
-                            <th>CEP</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        for (const fornecedor of listaFornecedores) {
-            conteudo += `
-                <tr>
-                    <td>${fornecedor.cnpj}</td>
-                    <td>${fornecedor.razaoSocial}</td>
-                    <td>${fornecedor.nomeFantasia}</td>
-                    <td>${fornecedor.telefone}</td>
-                    <td>${fornecedor.email}</td>
-                    <td>${fornecedor.endereco}</td>
-                    <td>${fornecedor.cidade}/${fornecedor.uf}</td>
-                    <td>${fornecedor.cep}</td>
-                </tr>
-            `;
-        }
-        conteudo += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-    } else {
-        conteudo += '<p class="alert alert-info">Nenhum fornecedor cadastrado ainda.</p>';
-    }
-
-    conteudo += `
-        </div>
-    </body>
-    </html>
-    `;
-    resposta.send(conteudo);
-});
-server.post('/cadastrar-fornecedor', (requisicao, resposta) => {
-    const { cnpj, razaoSocial, nomeFantasia, telefone, endereco, cidade, uf, cep, email } = requisicao.body;
-
-    if (cnpj && razaoSocial && nomeFantasia && telefone && endereco && cidade && uf && cep && email) {
-        listaFornecedores.push({ cnpj, razaoSocial, nomeFantasia, telefone, endereco, cidade, uf, cep, email });
-        console.log("Fornecedor cadastrado com sucesso!");
-        resposta.redirect('/cadastrar-fornecedor');
-    } else {
-        let conteudo = `
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Cadastro de Fornecedor</title>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        </head>
-        <body>
-            ${gerarMenu()}
+    if (estaLogado) {
+        corpo = `
             <div class="container mt-5">
-                <h2 class="mb-4">Cadastro de Fornecedor</h2>
-                
-                <form action="/cadastrar-fornecedor" method="POST">
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="cnpj" class="form-label">CNPJ:</label>
-                            <input type="text" class="form-control" id="cnpj" name="cnpj" value="${cnpj}" placeholder="00.000.000/0000-00">
-        `;
-        if (!cnpj) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o CNPJ</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="razaoSocial" class="form-label">Razão Social:</label>
-                            <input type="text" class="form-control" id="razaoSocial" name="razaoSocial" value="${razaoSocial}" placeholder="Moraes & irmãos Ltda">
-        `;
-        if (!razaoSocial) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe a Razão Social</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="nomeFantasia" class="form-label">Nome Fantasia:</label>
-                            <input type="text" class="form-control" id="nomeFantasia" name="nomeFantasia" value="${nomeFantasia}" placeholder="Loja do 1,99">
-        `;
-        if (!nomeFantasia) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o Nome Fantasia</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="telefone" class="form-label">Telefone:</label>
-                            <input type="text" class="form-control" id="telefone" name="telefone" value="${telefone}" placeholder="(00) 00000-0000">
-        `;
-        if (!telefone) {
-            conteudo += `
-                        <div>
-                            <p class="text-danger">Por favor, informe o Telefone</p>
-                        </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="endereco" class="form-label">Endereço:</label>
-                        <input type="text" class="form-control" id="endereco" name="endereco" value="${endereco}" placeholder="Rua, Número, Bairro">
-        `;
-        if (!endereco) {
-            conteudo += `
-                        <div>
-                            <p class="text-danger">Por favor, informe o Endereço</p>
-                        </div>
-            `;
-        }
-        conteudo += `
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-5 mb-3">
-                            <label for="cidade" class="form-label">Cidade:</label>
-                            <input type="text" class="form-control" id="cidade" name="cidade" value="${cidade}">
-        `;
-        if (!cidade) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe a Cidade</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="uf" class="form-label">UF:</label>
-                            <input type="text" class="form-control" id="uf" name="uf" value="${uf}" placeholder="SP" maxlength="2">
-        `;
-        if (!uf) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o UF</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="cep" class="form-label">CEP:</label>
-                            <input type="text" class="form-control" id="cep" name="cep" value="${cep}" placeholder="00000-000">
-        `;
-        if (!cep) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o CEP</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email:</label>
-                        <input type="email" class="form-control" id="email" name="email" value="${email}" placeholder="contato@empresa.com">
-        `;
-        if (!email) {
-            conteudo += `
-                        <div>
-                            <p class="text-danger">Por favor, informe o Email</p>
-                        </div>
-            `;
-        }
-        conteudo += `
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">Cadastrar</button>
-                </form>
-                <hr class="mt-5">
-
-                <h3 class="mb-4">Fornecedores Cadastrados</h3>
-        `;
-        if (listaFornecedores.length > 0) {
-            conteudo += `
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>CNPJ</th>
-                                <th>Razão Social</th>
-                                <th>Nome Fantasia</th>
-                                <th>Telefone</th>
-                                <th>Email</th>
-                                <th>Endereço</th>
-                                <th>Cidade/UF</th>
-                                <th>CEP</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            for (const fornecedor of listaFornecedores) {
-                conteudo += `
-                    <tr>
-                        <td>${fornecedor.cnpj}</td>
-                        <td>${fornecedor.razaoSocial}</td>
-                        <td>${fornecedor.nomeFantasia}</td>
-                        <td>${fornecedor.telefone}</td>
-                        <td>${fornecedor.email}</td>
-                        <td>${fornecedor.endereco}</td>
-                        <td>${fornecedor.cidade}/${fornecedor.uf}</td>
-                        <td>${fornecedor.cep}</td>
-                    </tr>
-                `;
-            }
-            conteudo += `
-                        </tbody>
-                    </table>
+                <div class="alert alert-success text-center py-5" role="alert">
+                    <h1 class="display-4">Dashboard Principal</h1>
+                    <p class="lead">Bem-vindo(a), ${nomeUsuario}!</p>
+                    <hr class="my-4">
+                    <p>Você está logado e pode acessar todas as funcionalidades do sistema.</p>
+                    <a class="btn btn-primary btn-lg" href="/cadastrar-produto" role="button">Ir para Cadastro de Produtos</a>
                 </div>
-            `;
-        } else {
-            conteudo += '<p class="alert alert-info">Nenhum fornecedor cadastrado ainda.</p>';
-        }
-
-        conteudo += `
-            </div>
-        </body>
-        </html>
-        `;
-
-        resposta.send(conteudo);
-    }
-});
-server.get("/cadastrar-cliente", verificarusuariologado, (requisicao, resposta) => {
-    let conteudo = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cadastro de Cliente</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    </head>
-    <body>
-        ${gerarMenu()}
-        <div class="container mt-5">
-            <h2 class="mb-4">Formulário de Cadastro de Cliente</h2>
-            
-            <form action="/cadastrar-cliente" method="POST">
-                
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label for="nome" class="form-label">Nome Completo:</label>
-                        <input type="text" class="form-control" id="nome" name="nome" value="">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="email" class="form-label">Email:</label>
-                        <input type="email" class="form-control" id="email" name="email" value="">
-                    </div>
+                <div class="alert alert-info mt-4" role="alert">
+                    <h4 class="alert-heading">Requisitos da Atividade</h4>
+                    <p><strong>Login/Sessão:</strong> Credenciais de teste: Usuário: <code>admin</code> | Senha: <code>admin</code></p>
+                    <p><strong>Cadastro de Produtos:</strong> Rota protegida por login/sessão.</p>
+                    <p class="mb-0"><strong>Último Acesso (Cookies):</strong> Implementado na página de Cadastro de Produtos.</p>
                 </div>
-
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label for="cpf" class="form-label">CPF:</label>
-                        <input type="text" class="form-control" id="cpf" name="cpf" value="" placeholder="000.000.000-00">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="telefone" class="form-label">Telefone:</label>
-                        <input type="text" class="form-control" id="telefone" name="telefone" value="" placeholder="(00) 00000-0000">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="dataNascimento" class="form-label">Data de Nascimento:</label>
-                        <input type="date" class="form-control" id="dataNascimento" name="dataNascimento" value="">
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="endereco" class="form-label">Endereço:</label>
-                    <input type="text" class="form-control" id="endereco" name="endereco" value="">
-                </div>
-                
-                <div class="row">
-                    <div class="col-md-5 mb-3">
-                        <label for="cidade" class="form-label">Cidade:</label>
-                        <input type="text" class="form-control" id="cidade" name="cidade" value="">
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label for="uf" class="form-label">UF:</label>
-                        <input type="text" class="form-control" id="uf" name="uf" value="" placeholder="SC" maxlength="2">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="cep" class="form-label">CEP:</label>
-                        <input type="text" class="form-control" id="cep" name="cep" value="" placeholder="00000-000">
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn btn-primary">Cadastrar</button>
-            </form>
-            <hr class="mt-5">
-
-            <h3 class="mb-4">Clientes Cadastrados</h3>
-    `;
-    if (listaClientes.length > 0) {
-        conteudo += `
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Email</th>
-                            <th>CPF</th>
-                            <th>Telefone</th>
-                            <th>Data Nasc.</th>
-                            <th>Cidade/UF</th>
-                            <th>CEP</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-        for (const cliente of listaClientes) {
-            conteudo += `
-                <tr>
-                    <td>${cliente.nome}</td>
-                    <td>${cliente.email}</td>
-                    <td>${cliente.cpf}</td>
-                    <td>${cliente.telefone}</td>
-                    <td>${cliente.dataNascimento}</td>
-                    <td>${cliente.cidade}/${cliente.uf}</td>
-                    <td>${cliente.cep}</td>
-                </tr>
-            `;
-        }
-        conteudo += `
-                    </tbody>
-                </table>
             </div>
         `;
     } else {
-        conteudo += '<p class="alert alert-info">Nenhum cliente cadastrado ainda.</p>';
-    }
-    conteudo += `
-        </div>
-    </body>
-    </html>
-    `;
-    resposta.send(conteudo);
-});
-
-server.post('/cadastrar-cliente', (requisicao, resposta) => {
-    const { nome, email, cpf, telefone, dataNascimento, endereco, cidade, uf, cep } = requisicao.body;
-
-    if (nome && email && cpf && telefone && dataNascimento && endereco && cidade && uf && cep) {
-        listaClientes.push({ nome, email, cpf, telefone, dataNascimento, endereco, cidade, uf, cep });
-        console.log("Cliente cadastrado com sucesso!");
-        resposta.redirect('/cadastrar-cliente');
-    } else {
-        let conteudo = `
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Cadastro de Cliente</title>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        </head>
-        <body>
-            ${gerarMenu()}
+        corpo = `
             <div class="container mt-5">
-                <h2 class="mb-4">Formulário de Cadastro de Cliente</h2>
+                <div class="hero-section text-center">
+                    <h1 class="display-4">Bem-vindo(a) ao Sistema de Cadastro!</h1>
+                    <p class="lead">Aqui você pode gerenciar seus produtos de forma segura, com controle de sessão e cookies.</p>
+                    <hr class="my-4">
+                    <p>
+                        Para cadastrar produtos, você precisa fazer o login.
+                    </p>
+                    <a class="btn btn-primary btn-lg" href="/login" role="button">Fazer Login</a>
+                </div>
                 
-                <form action="/cadastrar-cliente" method="POST">
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="nome" class="form-label">Nome Completo:</label>
-                            <input type="text" class="form-control" id="nome" name="nome" value="${nome}">
-        `;
-        if (!nome) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o Nome Completo</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="email" class="form-label">Email:</label>
-                            <input type="email" class="form-control" id="email" name="email" value="${email}">
-        `;
-        if (!email) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o Email</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label for="cpf" class="form-label">CPF:</label>
-                            <input type="text" class="form-control" id="cpf" name="cpf" value="${cpf}" placeholder="000.000.000-00">
-        `;
-        if (!cpf) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o CPF</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="telefone" class="form-label">Telefone:</label>
-                            <input type="text" class="form-control" id="telefone" name="telefone" value="${telefone}" placeholder="(00) 00000-0000">
-        `;
-        if (!telefone) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o Telefone</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="dataNascimento" class="form-label">Data de Nascimento:</label>
-                            <input type="date" class="form-control" id="dataNascimento" name="dataNascimento" value="${dataNascimento}">
-        `;
-        if (!dataNascimento) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe a Data de Nascimento</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="endereco" class="form-label">Endereço:</label>
-                        <input type="text" class="form-control" id="endereco" name="endereco" value="${endereco}">
-        `;
-        if (!endereco) {
-            conteudo += `
-                        <div>
-                            <p class="text-danger">Por favor, informe o Endereço</p>
-                        </div>
-            `;
-        }
-        conteudo += `
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-5 mb-3">
-                            <label for="cidade" class="form-label">Cidade:</label>
-                            <input type="text" class="form-control" id="cidade" name="cidade" value="${cidade}">
-        `;
-        if (!cidade) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe a Cidade</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="uf" class="form-label">UF:</label>
-                            <input type="text" class="form-control" id="uf" name="uf" value="${uf}" placeholder="SC" maxlength="2">
-        `;
-        if (!uf) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o UF</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="cep" class="form-label">CEP:</label>
-                            <input type="text" class="form-control" id="cep" name="cep" value="${cep}" placeholder="00000-000">
-        `;
-        if (!cep) {
-            conteudo += `
-                            <div>
-                                <p class="text-danger">Por favor, informe o CEP</p>
-                            </div>
-            `;
-        }
-        conteudo += `
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">Cadastrar</button>
-                </form>
-                <hr class="mt-5">
-
-                <h3 class="mb-4">Clientes Cadastrados</h3>
-        `;
-        if (listaClientes.length > 0) {
-            conteudo += `
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Email</th>
-                                <th>CPF</th>
-                                <th>Telefone</th>
-                                <th>Data Nasc.</th>
-                                <th>Cidade/UF</th>
-                                <th>CEP</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            for (const cliente of listaClientes) {
-                conteudo += `
-                    <tr>
-                        <td>${cliente.nome}</td>
-                        <td>${cliente.email}</td>
-                        <td>${cliente.cpf}</td>
-                        <td>${cliente.telefone}</td>
-                        <td>${cliente.dataNascimento}</td>
-                        <td>${cliente.cidade}/${cliente.uf}</td>
-                        <td>${cliente.cep}</td>
-                    </tr>
-                `;
-            }
-            conteudo += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        } else {
-            conteudo += '<p class="alert alert-info">Nenhum cliente cadastrado ainda.</p>';
-        }
-        conteudo += `
-            </div>
-        </body>
-        </html>
-        `;
-
-        resposta.send(conteudo);
-    }
-});
-server.get('/login', (requisicao, resposta) => {
-    let conteudo = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Login</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    </head>
-    <body>
-        ${gerarMenu()}
-        <div class="container mt-5">
-            <div class="row justify-content-center">
-                <div class="col-md-6">
-                    <h2 class="mb-4">Login</h2>
-                    <form action="/login" method="POST">
-                        <div class="mb-3">
-                            <label for="usuario" class="form-label">Usuário:</label>
-                            <input type="text" class="form-control" id="usuario" name="usuario" value="" placeholder="Digite seu usuário">
-                        </div>
-                        <div class="mb-3">
-                            <label for="senha" class="form-label">Senha:</label>
-                            <input type="password" class="form-control" id="senha" name="senha" placeholder="Digite sua senha">
-                        </div>
-                        <button type="submit" class="btn btn-success">Entrar</button>
-                    </form>
-                    <div class="mt-3">
-                        <p class="text-muted"><small>Login: usuário: <strong>admin</strong> | senha: <strong>123</strong></small></p>
-                    </div>
+                <div class="alert alert-info mt-4" role="alert">
+                    <h4 class="alert-heading">Requisitos da Atividade</h4>
+                    <p><strong>Login/Sessão:</strong> Credenciais de teste: Usuário: <code>admin</code> | Senha: <code>admin</code></p>
+                    <p><strong>Cadastro de Produtos:</strong> Rota protegida por login/sessão.</p>
+                    <p class="mb-0"><strong>Último Acesso (Cookies):</strong> Implementado na página de Cadastro de Produtos.</p>
                 </div>
             </div>
-        </div>
-    </body>
-    </html>
-    `;
-    resposta.send(conteudo);
-});
-server.post('/login', (requisicao, resposta) => {
-    const { usuario, senha } = requisicao.body;
-
-    let conteudo = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Login</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    </head>
-    <body>
-        ${gerarMenu()}
-        <div class="container mt-5">
-            <div class="row justify-content-center">
-                <div class="col-md-6">
-                    <h2 class="mb-4">Login</h2>
-                    <form action="/login" method="POST">
-                        <div class="mb-3">
-                            <label for="usuario" class="form-label">Usuário:</label>
-                            <input type="text" class="form-control" id="usuario" name="usuario" value="${usuario}" placeholder="Digite seu usuário">
-                        </div>
-                        <div class="mb-3">
-                            <label for="senha" class="form-label">Senha:</label>
-                            <input type="password" class="form-control" id="senha" name="senha" placeholder="Digite sua senha">
-                        </div>
-                        <button type="submit" class="btn btn-success">Entrar</button>
-                    </form>
-    `;
-    if (usuario === 'admin' && senha === '123') {
-        conteudo += `
-                    <div class="alert alert-success mt-4" role="alert">
-                        <h4 class="alert-heading">Login efetuado com sucesso!</h4>
-                        <p>Bem-vindo ao sistema, <strong>${usuario}</strong>!</p>
-                        <hr>
-                        <p class="mb-0">Use o menu acima para navegar pelas funcionalidades.</p>
-                    </div>
-        `;
-    } else {
-        conteudo += `
-                    <div class="alert alert-danger mt-4" role="alert">
-                        <h4 class="alert-heading">Falha no login!</h4>
-                        <p>Usuário ou senha inválidos. Por favor, tente novamente.</p>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-muted"><small>logiN: usuário: <strong>admin</strong> | senha: <strong>123</strong></small></p>
-                    </div>
         `;
     }
-    conteudo += `
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
 
-    resposta.send(conteudo);
-});
-server.get('/logout', (requisicao, resposta) => {
-    let conteudo = `
+    resposta.write(`
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Logout</title>
+        <title>Home - Sistema de Produtos</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body { background-color: #f8f9fa; }
+            .hero-section { background-color: #e9ecef; padding: 4rem 0; border-radius: 0.5rem; }
+        </style>
     </head>
     <body>
-        ${gerarMenu()}
-        <div class="container mt-5">
-            <div class="row justify-content-center">
-                <div class="col-md-8">
-                    <div class="alert alert-success" role="alert">
-                        <h4 class="alert-heading">Logout efetuado com sucesso!</h4>
-                        <hr>
-                    </div>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-start">
-                        <a href="/" class="btn btn-primary">Voltar para Home</a>
-                        <a href="/login" class="btn btn-success">Fazer Login Novamente</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        ${gerarMenu(nomeUsuario)}
+        ${corpo}
     </body>
     </html>
-    `;
-    resposta.send(conteudo);
-});
-
-server.get("/login", (requisicao,resposta) => {
-    resposta.send(`
-    
-
     `);
-} 
+    resposta.end();
+});
+
+server.get('/login', (requisicao, resposta) => {
+    if (requisicao.session?.dadoslogin?.usuariologado) {
+        return resposta.redirect("/");
+    }
+
+    const erro = requisicao.query.erro;
+
+    resposta.setHeader("Content-Type", "text/html; charset=utf-8");
+
+    resposta.write(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login - Sistema</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body { background-color: #f8f9fa; }
+            .login-card { border: none; border-radius: 1rem; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); }
+        </style>
+    </head>
+    <body>
+        ${gerarMenu()}
+        <div class="container mt-5">
+            <div class="row justify-content-center">
+                <div class="col-md-5">
+                    <div class="card login-card p-4">
+                        <h2 class="card-title text-center mb-4 text-primary">Autenticação do Sistema</h2>
+                        
+                        ${erro === 'invalido' ? `
+                            <div class="alert alert-danger" role="alert">
+                                Usuário ou senha inválidos. Tente novamente.
+                            </div>
+                        ` : ''}
+                        
+                        ${erro === 'naologado' ? `
+                            <div class="alert alert-warning" role="alert">
+                                Você precisa estar logado para acessar a área de cadastro.
+                            </div>
+                        ` : ''}
+
+                        <form action="/login" method="POST">
+                            <div class="mb-3">
+                                <label for="usuario" class="form-label">Usuário:</label>
+                                <input type="text" class="form-control" id="usuario" name="usuario" placeholder="admin" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="senha" class="form-label">Senha:</label>
+                                <input type="password" class="form-control" id="senha" name="senha" placeholder="admin" required>
+                            </div>
+                            <div class="d-grid">
+                                <button class="btn btn-success btn-lg" type="submit">Login</button>
+                            </div>
+                        </form>
+                        <div class="mt-3 text-center">
+                            <small class="text-muted">Credenciais de Teste: <strong>admin</strong> / <strong>admin</strong></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    `);
+    resposta.end();
+});
+
+server.post("/login", (requisicao, resposta) => {
+    const { usuario, senha } = requisicao.body;
+    if (usuario === "admin" && senha === "admin") {
+        requisicao.session.dadoslogin = {
+            usuariologado: true,
+            nomeusuario: "Administrador"
+        };
+        resposta.redirect("/");
+    } else {
+        resposta.redirect("/login?erro=invalido");
+    }
+});
+
+server.get('/logout', (requisicao, resposta) => {
+    requisicao.session.destroy((err) => {
+        if (err) {
+            console.log("Erro ao destruir a sessão:", err);
+        }
+        resposta.redirect("/");
+    });
+});
+
+server.get("/cadastrar-produto", verificarusuariologado, (requisicao, resposta) => {
+    
+    let ultimoacesso = requisicao.cookies?.ultimoacesso;
+    const data = new Date();
+    
+    resposta.cookie("ultimoacesso", data.toLocaleString("pt-BR"), { maxAge: 900000, httpOnly: true });
+
+    let nomeUsuario = requisicao.session?.dadoslogin?.nomeusuario || "Usuário Logado";
+    
+    resposta.setHeader("Content-Type", "text/html; charset=utf-8");
+    resposta.write(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cadastro de Produto</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        ${gerarMenu(nomeUsuario)}
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between p-3 bg-light border-bottom">
+                <p class="mb-0 text-dark"><strong>Usuário:</strong> ${nomeUsuario}</p>
+                <!-- Exibição do Cookie de Último Acesso -->
+                <p class="mb-0 text-secondary"><strong>Último Acesso:</strong> ${ultimoacesso || "Primeiro acesso"}</p>
+            </div>
+        </div>
+        <div class="container mt-4">
+            <h2 class="mb-4 text-primary">Cadastro de Novo Produto</h2>
+            
+            <form action="/cadastrar-produto" method="POST" class="row g-3">
+                
+                <div class="col-md-6">
+                    <label for="codigoBarras" class="form-label">Código de Barras:</label>
+                    <input type="text" class="form-control" id="codigoBarras" name="codigoBarras" required placeholder="Ex: 7891234567890">
+                </div>
+                <div class="col-md-6">
+                    <label for="descricao" class="form-label">Descrição do Produto:</label>
+                    <input type="text" class="form-control" id="descricao" name="descricao" required placeholder="Ex: Notebook Gamer">
+                </div>
+
+                <div class="col-md-3">
+                    <label for="precoCusto" class="form-label">Preço de Custo (R$):</label>
+                    <input type="number" step="0.01" class="form-control" id="precoCusto" name="precoCusto" required placeholder="0.00">
+                </div>
+                <div class="col-md-3">
+                    <label for="precoVenda" class="form-label">Preço de Venda (R$):</label>
+                    <input type="number" step="0.01" class="form-control" id="precoVenda" name="precoVenda" required placeholder="0.00">
+                </div>
+                <div class="col-md-3">
+                    <label for="dataValidade" class="form-label">Data de Validade:</label>
+                    <input type="date" class="form-control" id="dataValidade" name="dataValidade" required>
+                </div>
+                <div class="col-md-3">
+                    <label for="qtdEstoque" class="form-label">Qtd em Estoque:</label>
+                    <input type="number" class="form-control" id="qtdEstoque" name="qtdEstoque" required placeholder="0">
+                </div>
+
+                <div class="col-12">
+                    <label for="nomeFabricante" class="form-label">Nome do Fabricante:</label>
+                    <input type="text" class="form-control" id="nomeFabricante" name="nomeFabricante" required placeholder="Ex: Sony, Samsung, etc.">
+                </div>
+                
+                <div class="col-12 mt-4">
+                    <button type="submit" class="btn btn-success btn-lg">Cadastrar Produto</button>
+                </div>
+            </form>
+            <hr class="my-5">
+
+            <h3 class="mb-4 text-secondary">Produtos Cadastrados</h3>
+    `);
+    if (listaProdutos.length > 0) {
+        resposta.write(`
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Cód. Barras</th>
+                            <th>Descrição</th>
+                            <th>Preço Custo</th>
+                            <th>Preço Venda</th>
+                            <th>Validade</th>
+                            <th>Estoque</th>
+                            <th>Fabricante</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `);
+        for (const produto of listaProdutos) {
+            resposta.write(`
+                <tr>
+                    <td>${produto.codigoBarras}</td>
+                    <td>${produto.descricao}</td>
+                    <td>R$ ${parseFloat(produto.precoCusto).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td>R$ ${parseFloat(produto.precoVenda).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td>${produto.dataValidade}</td>
+                    <td>${produto.qtdEstoque}</td>
+                    <td>${produto.nomeFabricante}</td>
+                </tr>
+            `);
+        }
+        resposta.write(`
+                    </tbody>
+                </table>
+            </div>
+        `);
+    } else {
+        resposta.write('<div class="alert alert-info">Nenhum produto cadastrado ainda.</div>');
+    }
+
+    resposta.write(`
+        </div>
+    </body>
+    </html>
+    `);
+    resposta.end();
+});
+server.post('/cadastrar-produto', verificarusuariologado, (requisicao, resposta) => {
+    const { codigoBarras, descricao, precoCusto, precoVenda, dataValidade, qtdEstoque, nomeFabricante } = requisicao.body;
+
+    if (codigoBarras && descricao && precoCusto && precoVenda && dataValidade && qtdEstoque && nomeFabricante) {
+        listaProdutos.push({ codigoBarras, descricao, precoCusto, precoVenda, dataValidade, qtdEstoque, nomeFabricante });
+        console.log("Produto cadastrado com sucesso!");
+        resposta.redirect('/cadastrar-produto');
+    } else {
+        let ultimoacesso = requisicao.cookies?.ultimoacesso;
+        const data = new Date();
+        resposta.cookie("ultimoacesso", data.toLocaleString("pt-BR"), { maxAge: 900000, httpOnly: true });
+
+        let nomeUsuario = requisicao.session?.dadoslogin?.nomeusuario || "Usuário Logado";
+        
+        resposta.setHeader("Content-Type", "text/html; charset=utf-8");
+    
+        resposta.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Erro no Cadastro</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        </head>
+        <body>
+            ${gerarMenu(nomeUsuario)}
+            <div class="container-fluid">
+                <div class="d-flex justify-content-between p-3 bg-light border-bottom">
+                    <p class="mb-0 text-dark"><strong>Usuário:</strong> ${nomeUsuario}</p>
+                    <p class="mb-0 text-secondary"><strong>Último Acesso:</strong> ${ultimoacesso || "Primeiro acesso"}</p>
+                </div>
+            </div>
+            <div class="container mt-4">
+                <div class="alert alert-danger" role="alert">
+                    <strong>Erro:</strong> Todos os campos do formulário são obrigatórios. Por favor, preencha-os.
+                </div>
+                <h2 class="mb-4 text-primary">Cadastro de Novo Produto</h2>
+                
+                <form action="/cadastrar-produto" method="POST" class="row g-3">
+                    
+                    <div class="col-md-6">
+                        <label for="codigoBarras" class="form-label">Código de Barras:</label>
+                        <input type="text" class="form-control ${!codigoBarras ? 'is-invalid' : ''}" id="codigoBarras" name="codigoBarras" value="${codigoBarras || ''}" required placeholder="Ex: 7891234567890">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="descricao" class="form-label">Descrição do Produto:</label>
+                        <input type="text" class="form-control ${!descricao ? 'is-invalid' : ''}" id="descricao" name="descricao" value="${descricao || ''}" required placeholder="Ex: Notebook Gamer">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="precoCusto" class="form-label">Preço de Custo (R$):</label>
+                        <input type="number" step="0.01" class="form-control ${!precoCusto ? 'is-invalid' : ''}" id="precoCusto" name="precoCusto" value="${precoCusto || ''}" required placeholder="0.00">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="precoVenda" class="form-label">Preço de Venda (R$):</label>
+                        <input type="number" step="0.01" class="form-control ${!precoVenda ? 'is-invalid' : ''}" id="precoVenda" name="precoVenda" value="${precoVenda || ''}" required placeholder="0.00">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dataValidade" class="form-label">Data de Validade:</label>
+                        <input type="date" class="form-control ${!dataValidade ? 'is-invalid' : ''}" id="dataValidade" name="dataValidade" value="${dataValidade || ''}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="qtdEstoque" class="form-label">Qtd em Estoque:</label>
+                        <input type="number" class="form-control ${!qtdEstoque ? 'is-invalid' : ''}" id="qtdEstoque" name="qtdEstoque" value="${qtdEstoque || ''}" required placeholder="0">
+                    </div>
+
+                    <div class="col-12">
+                        <label for="nomeFabricante" class="form-label">Nome do Fabricante:</label>
+                        <input type="text" class="form-control ${!nomeFabricante ? 'is-invalid' : ''}" id="nomeFabricante" name="nomeFabricante" value="${nomeFabricante || ''}" required placeholder="Ex: Sony, Samsung, etc.">
+                    </div>
+                    
+                    <div class="col-12 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">Cadastrar Produto</button>
+                    </div>
+                </form>
+
+                <hr class="my-5">
+                <h3 class="mb-4 text-secondary">Produtos Cadastrados (Exibição)</h3>
+        `);
+        if (listaProdutos.length > 0) {
+            resposta.write(`
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Cód. Barras</th>
+                                <th>Descrição</th>
+                                <th>Preço Custo</th>
+                                <th>Preço Venda</th>
+                                <th>Validade</th>
+                                <th>Estoque</th>
+                                <th>Fabricante</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `);
+            for (const produto of listaProdutos) {
+                resposta.write(`
+                    <tr>
+                        <td>${produto.codigoBarras}</td>
+                        <td>${produto.descricao}</td>
+                        <td>R$ ${parseFloat(produto.precoCusto).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td>R$ ${parseFloat(produto.precoVenda).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td>${produto.dataValidade}</td>
+                        <td>${produto.qtdEstoque}</td>
+                        <td>${produto.nomeFabricante}</td>
+                    </tr>
+                `);
+            }
+            resposta.write(`
+                        </tbody>
+                    </table>
+                </div>
+            `);
+        } else {
+            resposta.write('<div class="alert alert-info">Nenhum produto cadastrado ainda.</div>');
+        }
+
+        resposta.write(`
+            </div>
+        </body>
+        </html>
+        `);
+        resposta.end();
+    }
+});
 server.listen(porta, host, () => {
     console.log(`Servidor rodando em http://${host}:${porta}`);
+    console.log(`Faça login em http://${host}:${porta}/login com: admin/admin`);
 });
