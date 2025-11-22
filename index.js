@@ -1,13 +1,28 @@
 import express from "express";
+import cookieParser from "cookie-parser";
+import Session from "express-session";
+import session from "express-session";
+
 const host = "0.0.0.0";
 const porta = 3000;
 
 var listaFornecedores = [];
 var listaClientes = [];
+var usuariologado = false;
 
 const server = express();
 
+server.use(session({
+    secret:"Minh4Ch4v3S3cr3t4",
+    resave: true,
+    saveUninitialized: true,
+    cookie: {
+       maxAge : 1000 * 60 * 15
+    }
+}));
 server.use(express.urlencoded({ extended: true }));
+
+server.use(cookieParser());
 
 function gerarMenu() {
     return `
@@ -44,7 +59,14 @@ function gerarMenu() {
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     `;
 }
-server.get("/", (requisicao, resposta) => {
+server.get("/", verificarusuariologado, (requisicao, resposta) => {
+
+    //VERIFICAR EXISTENCIA DE COOKIES
+    let ultimoacesso = requisicao.cookies?.ultimoacesso;
+    if(usuariologado){
+        resposta.redirect("/cadastrodeusuario");
+    }
+
     let conteudo = `
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -419,7 +441,7 @@ server.post('/cadastrar-fornecedor', (requisicao, resposta) => {
         resposta.send(conteudo);
     }
 });
-server.get("/cadastrar-cliente", (requisicao, resposta) => {
+server.get("/cadastrar-cliente", verificarusuariologado, (requisicao, resposta) => {
     let conteudo = `
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -867,6 +889,13 @@ server.get('/logout', (requisicao, resposta) => {
     `;
     resposta.send(conteudo);
 });
+
+server.get("/login", (requisicao,resposta) => {
+    resposta.send(`
+    
+
+    `);
+} 
 server.listen(porta, host, () => {
     console.log(`Servidor rodando em http://${host}:${porta}`);
 });
